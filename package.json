@@ -1,0 +1,44 @@
+{
+  "name": "sawaref-parser",
+  "version": "1.0.0",
+  "description": "A tool (part of sawaref toolkit) that parses several Arabic morphological taggers and unify their output into standard represenstation",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aosaimy/sawaref-parser.git"
+  },
+  "bin": {
+    "resultsParser": "main.js",
+    "sawaref-parser": "main.js"
+  },
+  "keywords": [
+    "sawaref",
+    "parser",
+    "madamira",
+    "amira",
+    "stanford",
+    "arabic",
+    "pos",
+    "tagger",
+    "farasa",
+    "quranic",
+    "arabic",
+    "corpus"
+  ],
+  "author": "Abdulrahman Alosaimy",
+  "license": "GPL-2.0",
+  "bugs": {
+    "url": "https://github.com/aosaimy/sawaref-parser/issues"
+  },
+  "homepage": "https://github.com/aosaimy/sawaref-parser#readme",
+  "dependencies": {
+    "JSONStream": "^1.3.2",
+    "buckwalter-transliteration": "github:aosaimy/buckwalter-transliteration",
+    "chalk": "^2.3.0",
+    "event-stream": "^3.3.4",
+    "yargs": "^11.0.0"
+  }
+}
