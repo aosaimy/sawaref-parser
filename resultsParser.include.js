@@ -1,9 +1,11 @@
 "use strict"
 var buckwalter = require('buckwalter-transliteration');
+var config = require('./config.json');
 buckwalter.bw2utf = buckwalter("bw2utf")
 buckwalter.utf2bw = buckwalter("utf2bw")
 module.exports = {
-	buckwalter: buckwalter,
+    buckwalter: buckwalter,
+	config: config,
 	getCleanCopy : (obj) => {
 	    var copyOfObj = JSON.parse(JSON.stringify(obj));
 	    delete copyOfObj.prefix;

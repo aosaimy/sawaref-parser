@@ -16,7 +16,6 @@ module.exports = class MXParser {
             "stem": "stem"
         }
     }
-
     process() {
         var that = this;
         return function(data, callback) {

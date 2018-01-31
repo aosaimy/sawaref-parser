@@ -106,6 +106,7 @@ module.exports = class STParser {
                 analysis.prefix_pos.push("DT");
                 analysis.morphemes.push({
                     pos: "DT",
+                    utf8: "ال",
                     type: "prefix"
                 });
                 segments[k].pos = segments[k].pos.slice(2);

@@ -1,6 +1,6 @@
 "use strict";
-var include = require('./resultsParser.include.js');
-module.exports = class AMParser {
+var included = require('./resultsParser.include.js');
+module.exports = class EXParser {
     constructor(config) {
         this.poses = {
             "V-": 5, //"fEl",
@@ -93,7 +93,7 @@ module.exports = class AMParser {
                     analyses: [],
 
                 };
-                if (that.config.keepOrig)
+                if (included.config.keepOrig)
                     that.word.orig = ""
                 return;
 
@@ -184,7 +184,7 @@ module.exports = class AMParser {
 
             }
             if (that.word)
-                if (that.config.keepOrig)
+                if (included.config.keepOrig)
                     that.word.orig += line + "\n";
         }
     }
