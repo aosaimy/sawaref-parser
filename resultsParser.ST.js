@@ -69,60 +69,82 @@ module.exports = class STParser {
             utf8: "",
 
         };
-        for (let i in segments) {
-            analysis.utf8 += segments[i].wutf8;
-            obj.orig += JSON.stringify(segments[i]);
-        }
+        for (var i in segments) {
+            if(include.config.keepOrig)
+                obj.orig += JSON.stringify(segments[i]);
+            if (segments[i].utf8.charAt(segments[i].utf8.length - 1) == "#") {
+                segments[i].utf8 = segments[i].utf8.substr(0, segments[i].utf8.length - 1);
+                let current = segments[i].type = "prefix";
 
-        //to decide which is the stem
-        var theStem = null;
-        var max = -9999;
-        for (let k in segments) {
-            segments[k] = segments[k].analyses[0];
-        }
-        for (let k in segments) {
-            let t = segments[k].pos;
-            if (t[0] == "D" && t[1] == "T") {
-                t = t.slice(2);
-            }
-            if (this.poses[t] >= max) {
-                max = this.poses[t];
-                theStem = segments[k];
-            }
-        }
-        // should be impossible though
-        if (!theStem)
-            theStem = segments[0];
+                analysis[current].push(segments[i]);
+                analysis[current + "_pos"].push(segments[i].pos);
+            } else if (segments[i].utf8.charAt(0) == "+") {
+                segments[i].utf8 = segments[i].utf8.substr(1, segments[i].utf8.length);
+                let current = segments[i].type = "suffix";
 
-        // mark each with its type, once reach the stem change to suffix.
-        var current = "prefix";
-        for (let k in segments) {
-            // NORMALIZING.. if DT???? prefix of DET
-            let t = segments[k].pos;
-            if (t != "DT" && t[0] == "D" && t[1] == "T") {
-                analysis.prefix.push({
-                    pos: "DT"
-                });
-                analysis.prefix_pos.push("DT");
-                analysis.morphemes.push({
-                    pos: "DT",
-                    utf8: "ال",
-                    type: "prefix"
-                });
-                segments[k].pos = segments[k].pos.slice(2);
-            }
-            if (segments[k] == theStem) {
-                segments[k].type = "stem";
-                current = "suffix";
-                for (let x in theStem)
-                    analysis[x] = theStem[x];
+                analysis[current].push(segments[i]);
+                analysis[current + "_pos"].push(segments[i].pos);
             } else {
-                segments[k].type = current;
-                analysis[current].push(segments[k]);
-                analysis[current + "_pos"].push(segments[k].pos);
+                segments[i].type = "stem";
+                for (var x in segments[i])
+                    analysis[x] = segments[i][x];
             }
-            analysis.morphemes.push(include.getCleanCopy(segments[k]));
+            analysis.morphemes.push(include.getCleanCopy(segments[i]));
         }
+        // for (let i in segments) {
+        //     analysis.utf8 += segments[i].wutf8;
+        //     obj.orig += JSON.stringify(segments[i]);
+        // }
+
+        // //to decide which is the stem
+        // var theStem = null;
+        // var max = -9999;
+        // for (let k in segments) {
+        //     segments[k] = segments[k].analyses[0];
+        // }
+        // for (let k in segments) {
+        //     let t = segments[k].pos;
+        //     if (t[0] == "D" && t[1] == "T") {
+        //         t = t.slice(2);
+        //     }
+        //     if (this.poses[t] >= max) {
+        //         max = this.poses[t];
+        //         theStem = segments[k];
+        //     }
+        // }
+        // // should be impossible though
+        // if (!theStem)
+        //     theStem = segments[0];
+
+        // // mark each with its type, once reach the stem change to suffix.
+        // var current = "prefix";
+        // for (let k in segments) {
+        //     // NORMALIZING.. if DT???? prefix of DET
+        //     let t = segments[k].pos;
+        //     if (t != "DT" && t[0] == "D" && t[1] == "T") {
+        //         analysis.prefix.push({
+        //             pos: "DT"
+        //         });
+        //         analysis.prefix_pos.push("DT");
+        //         analysis.morphemes.push({
+        //             pos: "DT",
+        //             utf8: "ال",
+        //             type: "prefix"
+        //         });
+        //         segments[k].pos = segments[k].pos.slice(2);
+        //     }
+        //     if (segments[k] == theStem) {
+        //         segments[k].type = "stem";
+        //         current = "suffix";
+        //         for (let x in theStem)
+        //             analysis[x] = theStem[x];
+        //     } else {
+        //         segments[k].type = current;
+        //         analysis[current].push(segments[k]);
+        //         analysis[current + "_pos"].push(segments[k].pos);
+        //     }
+        //     analysis.morphemes.push(include.getCleanCopy(segments[k]));
+        // }
         obj.roman = include.buckwalter.utf2bw(obj.wutf8);
         obj.analyses.push(analysis);
 
@@ -140,8 +162,8 @@ module.exports = class STParser {
                 var raw = that.source
                 //remove short vowels
                 th.savedAyah = raw
-                    .replace(/[\u064b-\u065f]/g, '') // shortvowels
-                    .replace(/[\u0622\u0623\u0625]/g, '\u0627') // hamza
+                    // .replace(/[\u064b-\u065f]/g, '') // shortvowels
+                    // .replace(/[\u0622\u0623\u0625]/g, '\u0627') // hamza
                     // .replace(/[\u0649]/g,'\u064A') // yaa
                     .split(" ");
             }
@@ -150,27 +172,53 @@ module.exports = class STParser {
                 return th.sendData();
             }
 
-            var text = "";
-            var segments = th.segments;
-            for (let i in segments) {
-                text += segments[i].wutf8;
-            }
-            // console.error(data)
-            text += data.wutf8;
-            var currentScore = include.getEditDistance(th.savedAyah[th.counter], text);
 
-            if (th.previousScore < currentScore) {
-                var res = th.sendData();
-                if (res) {
-                    this.emit("data", res);
-                    th.segments = [];
-                    th.counter++;
+
+            if (data.utf8.charAt(data.utf8.length - 1) == "#") {
+                if (that.cu == "suffix" || that.cu == "stem") {
+                    //console.error(that.sendData())
+                    this.emit("data", that.sendData());
+                    that.segments = [];
+                    that.counter++;
                 }
-                th.previousScore = include.getEditDistance(th.savedAyah[th.counter], data.wutf8);
+
+                that.segments.push(data);
+                that.cu = "prefix";
+            } else if (data.utf8.charAt(0) == "+") {
+
+                that.segments.push(data);
+                that.cu = "suffix";
             } else {
-                th.previousScore = currentScore;
+                if (that.cu == "suffix" || that.cu == "stem") {
+                    this.emit("data", that.sendData());
+                    that.segments = [];
+                    that.counter++;
+                }
+                that.segments.push(data);
+                that.cu = "stem";
             }
-            th.segments.push(data);
+
+            // var text = "";
+            // var segments = th.segments;
+            // for (let i in segments) {
+            //     text += segments[i].wutf8;
+            // }
+            // // console.error(data)
+            // text += data.wutf8;
+            // var currentScore = include.getEditDistance(th.savedAyah[th.counter], text);
+
+            // if (th.previousScore < currentScore) {
+            //     var res = th.sendData();
+            //     if (res) {
+            //         this.emit("data", res);
+            //         th.segments = [];
+            //         th.counter++;
+            //     }
+            //     th.previousScore = include.getEditDistance(th.savedAyah[th.counter], data.wutf8);
+            // } else {
+            //     th.previousScore = currentScore;
+            // }
+            // th.segments.push(data);
         }
     }
     process(lines, callback) {
@@ -180,7 +228,7 @@ module.exports = class STParser {
 
         var result = {
             orig: lines,
-            analyses: [{}]
+            // analyses: [{}]
         };
         var word = lines.trim();
 
@@ -191,30 +239,29 @@ module.exports = class STParser {
             callback(null);
             return;
         }
-        result.wutf8 = result.analyses[0].utf8 = matches[1];
-        result.roman = result.analyses[0].roman = include.buckwalter.utf2bw(result.wutf8);
-        var t = result.analyses[0].pos = matches[2];
+        result.utf8 = result.utf8 = matches[1];
+        result.roman = result.roman = include.buckwalter.utf2bw(result.wutf8);
+        var t = result.pos = matches[2];
 
         // EXTRACTING FEATURES
-
         if (t == "NNS")
-            result.analyses[0].number = "plural";
+            result.number = "plural";
         else if (t == "NN")
-            result.analyses[0].number = "singular";
+            result.number = "singular";
         else if (t == "NNP")
-            result.analyses[0].number = "singular";
+            result.number = "singular";
         else if (t == "NNPS")
-            result.analyses[0].number = "plural";
+            result.number = "plural";
         else if (t == "VB")
-            result.analyses[0].aspect = "imperative";
+            result.aspect = "imperative";
         else if (t == "VBD") {
-            result.analyses[0].voice = "active";
-            result.analyses[0].aspect = "perfect";
+            result.voice = "active";
+            result.aspect = "perfect";
         } else if (t == "VBN")
-            result.analyses[0].voice = "passive";
+            result.voice = "passive";
         else if (t == "VBP") {
-            result.analyses[0].voice = "active";
-            result.analyses[0].aspect = "imperfect";
+            result.voice = "active";
+            result.aspect = "imperfect";
         }
 
 

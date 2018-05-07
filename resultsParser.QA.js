@@ -1,5 +1,6 @@
 "use strict";
 var include = require('./resultsParser.include.js');
+include.buckwalter.bw2utf_extended = include.buckwalter("qac2utf")
 module.exports = class QAParser {
     constructor(source) {
         this.savedWordPos = null
@@ -22,6 +23,10 @@ module.exports = class QAParser {
         return function(word) {
             var next_char = word.ayah[word.wordpos + 1] ? word.ayah[word.wordpos + 1][0] : "";
             word.analyses.forEach(an => {
+                an.morphemes.forEach(morph=>{
+                    morph.wordpos = word.wordpos
+                    morph.utf9 = morph.utf8
+                })
                 var utf8 = ""
                 if (word.name + ":" + word.wordpos == "41:44:8") {
                     an.morphemes[0].utf8 = "أَ"
@@ -31,6 +36,20 @@ module.exports = class QAParser {
                     word.name + ":" + word.wordpos == "26:176:4") {
                     an.morphemes[0].utf8 = "الْ"
                     an.morphemes[1].utf8 = "أَيْكَةِ"
+
+                    utf8 = an.morphemes.map(m => m.utf8)
+                } else if (word.name + ":" + word.wordpos == "20:94:1"){
+                    an.morphemes[0].utf8 = "يَا"
+                    an.morphemes[1].utf8 = "ابْنَ"
+
+                    utf8 = an.morphemes.map(m => m.utf8)
+                } else if (word.name + ":" + word.wordpos == "20:94:2"){
+                    an.morphemes[0].utf8 = "أُمَّ"
+                    an.morphemes[1].utf8 = ""
+
+                    utf8 = an.morphemes.map(m => m.utf8)
+                } else if (word.name + ":" + word.wordpos == "72:16:1"){
+                    an.morphemes[0].utf8 = "لَّوِ"
 
                     utf8 = an.morphemes.map(m => m.utf8)
                 } else
@@ -162,6 +181,8 @@ module.exports = class QAParser {
                             .map(m => m.utf8).join("");
                         var after = an.morphemes.filter((m, j) => j > i)
                             .map(m => m.utf8).join("")
+                        if (!word.ayah[word.wordpos])
+                            console.error("undefined: ", word.ayah, "[", word.wordpos,"]")
                         if (word.ayah[word.wordpos].indexOf(before) === 0 &&
                             (tmp = word.ayah[word.wordpos].lastIndexOf(after)) >= 0 &&
                             tmp + after.length == word.ayah[word.wordpos].length) {
@@ -184,9 +205,11 @@ module.exports = class QAParser {
                         )
                         // process.exit(-1)
                     }
-
-
                 }
+                an.morphemes.forEach(morph=>{
+                    if(morph.utf9 == morph.utf8)
+                        delete morph.utf9
+                })
             })
             delete word.ayah;
             this.emit("data", word)
@@ -369,6 +392,8 @@ module.exports = class QAParser {
     process(lines, callback) {
         if (lines.trim() === "")
             return callback(null);
+        if (lines[0] === "#")
+            return callback(null);
         var data = lines.split("\t");
 
         var qr = data[0].slice(1, -1).split(":");
@@ -379,7 +404,7 @@ module.exports = class QAParser {
             wordpos: qr[2],
             QAwordpos: parseInt(qr[2]),
             morphem: qr[3],
-            pos: data[2],
+            pos: data[2].trim(),
             orig: lines
         };
         if (!data[2]) {
@@ -388,39 +413,54 @@ module.exports = class QAParser {
         }
         result.roman = data[1].trim();
         result.utf8 = include.buckwalter.bw2utf_extended(result.roman);
+        if(result.pos == "V"){
+            result.mood = "IND"
+            result.voice = "ACT"
+        }
+        if(result.pos == "N" || result.pos == "ADJ"){
+            result.state = "DEF"
+        }
+
         var features = data[3].split("|");
-        result.type = features[0];
+        // result.type = features[0];
         for (var i in features) {
-            var f = features[i];
+            var f = features[i].trim();
             if (["PERF", "IMPF", "IMPV"].indexOf(f) >= 0) {
                 result.aspect = f;
             } else if (["DEF", "INDEF"].indexOf(f) >= 0) {
                 result.state = f;
             } else if (["IND", "SUBJ", "JUS", "ENG"].indexOf(f) >= 0) {
-                result.Mood = f;
+                result.mood = f;
             } else if (["ACT", "PASS"].indexOf(f) >= 0) {
                 result.voice = f;
                 //TODO add parantheses to each one in the following list
-            } else if (["I", "II", "III", "IV", "V", "VI", "VI", "VII", "VIII", "IX", "X", "XI", "XII"].indexOf(f) >= 0) {
+            } else if (["I", "II", "III", "IV", "V", "VI", "VI", "VII", "VIII", "IX", "X", "XI", "XII"].indexOf(f.replace(/[()]/g,"")) >= 0) {
                 result.verbform = f;
-            } else if (["ACT PCPL", "PASS PCPL", "VN"].indexOf(f) >= 0) {
+            } else if (["ACT PCPL", "PASS PCPL", "VN","PCPL"].indexOf(f) >= 0) {
                 result.derivation = f;
+            } else if (/^POS:.*/.test(f)) {
+                if(result.pos !== f.replace("POS:","").trim())
+                    console.error("POS in column is not same as in feats",result.pos, f.replace("POS:",""));
             } else if (["NOM", "ACC", "GEN"].indexOf(f) >= 0) {
                 result["case"] = f;
             } else if (result.type == "PREFIX" && f.substr(-1) == "+") // last character is +
             {
                 result.prefix = f.slice(0, -1);
+            } else if (["STEM","PREFIX","SUFFIX"].indexOf(f)>=0) // last character is +
+            {
+                result.type = f // I know it is already captured
             } else if (result.type == "SUFFIX" && f.substr(0, 1) == "+") // first character is +
             {
                 result.suffix = f.substr(-1);
-            } else if (f.length <= 3) {
-                for (var j in f) { // for each character
-                    if (['1', '2', '3'].indexOf(f[j]) >= 0)
-                        result.person = f[j];
-                    else if (['M', 'F'].indexOf(f[j]) >= 0)
-                        result.gender = f[j];
-                    else if (['S', 'D', 'P'].indexOf(f[j]) >= 0)
-                        result.number = f[j];
+            } else if (f.replace(/^PRON:/,"").length <= 3) {
+                let ff = f.replace(/^PRON:/,"")
+                for (var v of  ff) { // for each character
+                    if (['1', '2', '3'].indexOf(v) >= 0)
+                        result.person = v;
+                    else if (['M', 'F'].indexOf(v) >= 0)
+                        result.gender = v;
+                    else if (['S', 'D', 'P'].indexOf(v) >= 0)
+                        result.number = v;
                 }
             } else {
                 var o = f.split(":");
@@ -431,11 +471,18 @@ module.exports = class QAParser {
                         else
                             result[o[0].toLowerCase()] = o[1];
                     } else {
+                        console.error("Not captured info ",o)
                         result[o[0]] = true;
                     }
                 }
+                else
+                    console.error("Not captured info ",f)
             }
         }
+        if(result.pos == "V" && result.aspect !== "IMPF"){
+            delete result.mood
+        }
+
 
         callback(null, result);
     }

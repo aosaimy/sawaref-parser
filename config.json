@@ -1,3 +1,5 @@
 {
-	"keepOrig": false
+	"keepOrig": false,
+	"useBwForUtf8": true,
+	"debug": false
 }

@@ -12,13 +12,11 @@ var es = require('event-stream');
 var config = require('./config');
 
 function main(instream, argv){
-    var tool = argv.tool
-    var source = fs.readFileSync(argv.source, "utf8");
-
-
-    console.error(chalk.yellow("Parsing",argv.tool,argv.source ? argv.source : ""))
+    if(!argv.sourceText && !argv.source)
+        return console.error("No Source is given!")
+    var source = argv.sourceText || fs.readFileSync(argv.source, "utf8");
     if (argv.tool == "AR") {
-        var main = require('./resultsParser.AR.js');
+        let main = require('./resultsParser.AR.js');
         return instream
             .pipe(es.split("\n\n"))
             .pipe(es.map(main.process))
@@ -50,7 +48,7 @@ function main(instream, argv){
             
 
     } else if (argv.tool == "XE") {
-        var main = require('./resultsParser.XE.js');
+        let main = require('./resultsParser.XE.js');
         return instream
             .pipe(JSONStream.parse("analyzeResponse.analyzeResult.arabic-morphology.words.*.*"))
             .pipe(es.map(main.process))
@@ -58,10 +56,10 @@ function main(instream, argv){
 
 
     } else if (argv.tool == "MT") {
-        var main = require('./resultsParser.MT.js');
+        let main = require('./resultsParser.MT.js');
         return instream
             .pipe(JSONStream.parse("*"))
-            .pipe(es.through(function(data,cb){
+            .pipe(es.through(function(data){
                 // console.error(data);
                 for(var i in data.pos)
                     this.emit("data",data.pos[i])
@@ -71,7 +69,7 @@ function main(instream, argv){
 
 
     } else if (argv.tool == "MS") {
-        var main = require('./resultsParser.MS.js');
+        let main = require('./resultsParser.MS.js');
         return instream
             .pipe(JSONStream.parse("*"))
             // .pipe(es.through(function(data,cb){
@@ -141,9 +139,17 @@ function main(instream, argv){
     } else if (argv.tool == "MX") {
         let MXParser = require('./resultsParser.MX.js');
         let mxparser = new MXParser(config)
+
         //Copy/Pasted from MADA
-        return instream
-            .pipe(JSONStream.parse("madamira_output.out_doc.out_seg.word_info.word.*"))
+        if(argv.input != "json")
+            instream = instream.pipe(JSONStream.parse("madamira_output.out_doc.out_seg.word_info.word.*"))
+
+        return instream.pipe(es.through(function(data){
+                if(!Array.isArray(data))
+                    return this.emit("data",data)
+                for(let d of data)
+                    this.emit("data",d)
+            }))
             .pipe(es.map(mxparser.process()))
             
 
@@ -159,34 +165,33 @@ function main(instream, argv){
 
 
     } else if (argv.tool == "BP") {
-        var main = require('./resultsParser.BW.js');
+        let main = require('./resultsParser.BW.js');
         return instream
             .pipe(es.split("\n\n"))
             .pipe(es.map(main.process))
             
 
     } else if (argv.tool == "None") {
-        var main = require('./resultsParser.None.js');
         return instream
             .pipe(JSONStream.parse("*"))
             
 
     } else if (argv.tool == "AlKhalil") {
-        var main = require('./resultsParser.AlKhalil.js');
+        let main = require('./resultsParser.AlKhalil.js');
         return instream
             .pipe(JSONStream.parse("*"))
             .pipe(es.map(main.process))
             
 
     } else if (argv.tool == "KH") {
-        var main = require('./resultsParser.KH.js');
+        let main = require('./resultsParser.KH.js');
         return instream
             .pipe(es.split("\n"))
             .pipe(es.map(main.process))
             
 
     } else if (argv.tool == "BJ") {
-        var main = require('./resultsParser.BW.js');
+        let main = require('./resultsParser.BW.js');
         return instream
             .pipe(JSONStream.parse("*"))
             .pipe(es.map(main.processJava))
@@ -219,15 +224,15 @@ function main(instream, argv){
             
 
     } else if (argv.tool == "QT") {
-        var main = require('./resultsParser.QT.js');
-        var counter = 0;
+        let main = require('./resultsParser.QT.js');
+        // var counter = 0;
         return instream
             .pipe(es.split("\n"))
             .pipe(es.map(main.process))
             
 
     } else if (argv.tool == "MR") {
-        var main = require('./resultsParser.MR.js');
+        let main = require('./resultsParser.MR.js');
         return instream
             .pipe(es.split("\n"))
             .pipe(es.map(main.process))
@@ -243,7 +248,7 @@ function main(instream, argv){
             
 
     } else if (argv.tool == "WP") {
-        var main = require('./resultsParser.WP.js');
+        let main = require('./resultsParser.WP.js');
         return instream
             .pipe(es.split("\n"))
             .pipe(es.through(main.process))
@@ -271,25 +276,50 @@ if (require.main === module) { // called directly
     .demand('input').alias("input", "i").describe('input','convert from this file').default("i","/dev/stdin")
     .describe('d','debug')
     .argv
+    console.error(chalk.yellow("Parsing",argv.tool,argv.source ? argv.source : ""))
     var p = main(fs.createReadStream(argv.input),argv)
     if(p)
         p.pipe(JSONStream.stringify()).pipe(process.stdout)
 }
 else{
     exports.parseFile = function(inputFile,tool,sourceFile){
-        return main(fs.createReadStream(inputFile),{
+        let opts = {
             "tool" : tool,
-            "source" : fs.readFileSync(sourceFile, "utf8")
-        })
+        }
+        if(fs.existsSync(sourceFile))
+            opts.source = fs.readFileSync(sourceFile, "utf8")
+        else
+            opts.sourceText = sourceFile
+        return main(fs.createReadStream(inputFile),opts)
     }
-    exports.parseString = function(input,tool,source){
+    exports.parseString = function(inputStr,tool,source){
+        if(!source)
+            return console.error("No Source is given!")
         var Readable = require('stream').Readable
-        var i = new Readabl,confige
-        i.push(input)
+        var i = new Readable()
+        i.push(inputStr)
         i.push(null) // indicates end-of-file basically - the end of the stream
         return main(i,{
             "tool" : tool,
-            "source" : source
+            "sourceText" : source
+        })
+    }
+    exports.parseJSON = function(input,tool,source){
+        if(!source)
+            return console.error("No Source is given!")
+        var Readable = require('stream').Readable
+        var i = new Readable({ objectMode: true })
+        if(tool == "MX"){
+            if(Array.isArray(input.madamira_output.out_doc.out_seg.word_info.word))
+                input.madamira_output.out_doc.out_seg.word_info.word.forEach(x=>i.push(x))
+            else
+                i.push(input.madamira_output.out_doc.out_seg.word_info.word)
+        }
+        i.push(null) // indicates end-of-file basically - the end of the stream
+        return main(i,{
+            "tool" : tool,
+            "input" : "json",
+            "sourceText" : source
         })
     }
 }

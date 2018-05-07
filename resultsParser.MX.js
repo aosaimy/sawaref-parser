@@ -1,5 +1,7 @@
 "use strict";
 var include = require('./resultsParser.include.js');
+var config = require('./config');
+
 module.exports = class MXParser {
     constructor() {
         this.subsitute = {
@@ -41,7 +43,7 @@ module.exports = class MXParser {
                     prefix_pos: [],
                     suffix_pos: [],
                     utf8: anal.diac,
-                    bw: anal.bw,
+                    bw: anal.morph_feature_set.bw,
                     score: anal.score,
                     rank: anal.rank
                 };
@@ -62,6 +64,8 @@ module.exports = class MXParser {
                         }
                     }
                 }
+                if(obj.aspect=="c")
+                    obj.mood="u"
 
 
                 var copyOfObj = include.getCleanCopy(obj)
@@ -88,12 +92,16 @@ module.exports = class MXParser {
                         // pos:split[1],
                         fullpos: obj.suffix_pos[i]
                     }
-                    if (split[1] == "poss" || split[1] == "pron" || split[1] == "dobj" || split[1] == "iobj") {
+                    let type = ["poss","pron","dobj","iobj"].indexOf(split[1])
+                    if (type  >= 0 ) {
                         objj.utf8 = "";
-                        objj.pos = obj.suffix_pos[i];
-                        objj.person = split[1].replace(/[^1-3]/, "");
-                        objj.number = split[1].replace(/[^sdp]/, "");
-                        objj.gender = split[1].replace(/[^fm]/, "");
+                        objj.case = type === 0 ? "g" : type == 1 ? "g" : type == 2 ? "a" : "";
+
+                        objj.pos = split[1];
+
+                        objj.person = split[0].replace(/[^1-3]/g, "");
+                        objj.number = split[0].replace(/[^sdp]/g, "");
+                        objj.gender = split[0].replace(/[^fm]/g, "");
                     } else {
                         objj.utf8 = include.buckwalter.bw2utf(split[0]);
                         objj.pos = split[1];
@@ -116,6 +124,42 @@ module.exports = class MXParser {
                 if (obj.morphemes[saveIndex].utf8.indexOf(text) > 0) {
                     obj.morphemes[saveIndex].utf8 = obj.morphemes[saveIndex].utf8.substring(0, obj.morphemes[saveIndex].utf8.indexOf(text))
                 }
+
+                //NEW Thing comment it if it wrong: {
+                let bw_segments = anal.morph_feature_set.bw.split("+")
+                                .filter((e,i,arr)=>{
+                                    let s = e.split("/");
+                                    if(/^IV[1-3]/.test(s[1])){
+                                        arr[i+1] = s[0] + arr[i+1]
+                                        return false
+                                    }
+                                    return true;
+                                })
+                                .reverse().filter((e,i,arr)=>{
+                                    let s = e.split("/");
+                                    if(s[1].indexOf("CASE_")===0 || 
+                                    s[1].indexOf("NSUFF_")===0 || 
+                                    s[1].indexOf("PVSUFF_SUBJ")===0 ){
+                                        if(s[0] != "(null)")
+                                            arr[i+1] = arr[i+1].replace("/",s[0]+"/")
+                                        return false
+                                    }
+                                    return true;
+                                    // return s[1].indexOf("IV")!==0;
+
+                                }).reverse()
+
+                if(config.useBwForUtf8 && bw_segments.length == obj.morphemes.length){
+                    var utfs = bw_segments.map(e=>e.split("/")[0])
+                    for (let i in obj.morphemes){
+                        if(utfs[i])
+                            obj.morphemes[i].utf8 = include.buckwalter.bw2utf(utfs[i])
+                    }
+                }
+                else if(config.debug)
+                    console.error(bw_segments,obj.morphemes.map(x=>x.utf8).join("+"),bw_segments.length,obj.morphemes.length);
+                // }
+
                 obj.utf8 = include.buckwalter.bw2utf(obj.roman);
 
                 result.analyses.push(obj);
